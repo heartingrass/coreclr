@@ -20,10 +20,6 @@
 #
 # Please list a GitHub issue for every exclusion.
 
-# https://github.com/dotnet/coreclr/issues/24159
--nomethod "System.Buffers.Tests.ArrayBufferWriterTests_Byte.Advance"
--nomethod "System.Buffers.Tests.ArrayBufferWriterTests_Char.Advance"
-
 # https://github.com/dotnet/coreclr/issues/22442
 -nomethod "Microsoft.Win32.SystemEventsTests.CreateTimerTests.ConcurrentTimers"
 -nomethod "Microsoft.Win32.SystemEventsTests.SessionSwitchTests.SignalsSessionSwitch"
@@ -40,3 +36,6 @@
 
 # arm32/arm64 timeout. https://github.com/dotnet/coreclr/issues/22414
 -nomethod "System.Numerics.Tests.ToStringTest.RunRegionSpecificStandardFormatToStringTests"
+
+# https://github.com/dotnet/coreclr/issues/24265
+-nomethod "System.IO.Tests.CtorTests.NullEncodingThrows"

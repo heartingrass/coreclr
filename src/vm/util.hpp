@@ -744,75 +744,25 @@ void GetProcessMemoryLoad(LPMEMORYSTATUSEX pMSEX);
             return OOMRetVal;                       \
     }                                               \
 
+#define SetupForComCallHR() SetupThreadForComCall(E_OUTOFMEMORY)
+#define SetupForComCallDWORD() SetupThreadForComCall(ERROR_OUTOFMEMORY)
 
-#define InternalSetupForComCall(CannotEnterRetVal, OOMRetVal, SORetVal, CheckCanRunManagedCode) \
-SetupThreadForComCall(OOMRetVal);                       \
-if (CheckCanRunManagedCode && !CanRunManagedCode())     \
-    return CannotEnterRetVal;
-
-#define SetupForComCallHRNoHostNotif() InternalSetupForComCall(HOST_E_CLRNOTAVAILABLE, E_OUTOFMEMORY, COR_E_STACKOVERFLOW, true)
-#define SetupForComCallHRNoHostNotifNoCheckCanRunManagedCode() InternalSetupForComCall(HOST_E_CLRNOTAVAILABLE, E_OUTOFMEMORY, COR_E_STACKOVERFLOW, false)
-#define SetupForComCallDWORDNoHostNotif() InternalSetupForComCall(-1, -1, -1, true)
-
-#define SetupForComCallHR()                                                                \
-InternalSetupForComCall(HOST_E_CLRNOTAVAILABLE, E_OUTOFMEMORY, COR_E_STACKOVERFLOW, true)
-
-#define SetupForComCallHRNoCheckCanRunManagedCode()                                        \
-InternalSetupForComCall(HOST_E_CLRNOTAVAILABLE, E_OUTOFMEMORY, COR_E_STACKOVERFLOW, false)
-
-#ifdef FEATURE_CORRUPTING_EXCEPTIONS
-
-// Since Corrupting exceptions can escape COM interop boundaries,
-// these macros will be used to setup the initial SO-Intolerant transition.
-#define InternalSetupForComCallWithEscapingCorruptingExceptions(CannotEnterRetVal, OOMRetVal, SORetVal, CheckCanRunManagedCode) \
-if (CheckCanRunManagedCode && !CanRunManagedCode())                         \
-    return CannotEnterRetVal;                                               \
-SetupThreadForComCall(OOMRetVal);                                           \
-
-#define BeginSetupForComCallHRWithEscapingCorruptingExceptions()            \
-HRESULT __hr = S_OK;                                                        \
-InternalSetupForComCallWithEscapingCorruptingExceptions(HOST_E_CLRNOTAVAILABLE, E_OUTOFMEMORY, COR_E_STACKOVERFLOW, true)              \
-                                                                            \
-if (SUCCEEDED(__hr))                                                        \
-{                                                                           \
-
-#define EndSetupForComCallHRWithEscapingCorruptingExceptions()              \
-}                                                                           \
-                                                                            \
-if (FAILED(__hr))                                                           \
-{                                                                           \
-    return __hr;                                                            \
-}                                                                           \
-
-#endif // FEATURE_CORRUPTING_EXCEPTIONS
-
-#define SetupForComCallDWORD()                                              \
-InternalSetupForComCall(-1, -1, -1, true)
-
-// Special version of SetupForComCallDWORD that doesn't call
-// CanRunManagedCode() to avoid firing LoaderLock MDA
-#define SetupForComCallDWORDNoCheckCanRunManagedCode()                      \
-InternalSetupForComCall(-1, -1, -1, false)
-
-#include "unsafe.h"
-
-inline void UnsafeTlsFreeForHolder(DWORD* addr)
+// A holder for NATIVE_LIBRARY_HANDLE.
+FORCEINLINE void VoidFreeNativeLibrary(NATIVE_LIBRARY_HANDLE h)
 {
     WRAPPER_NO_CONTRACT;
 
-    if (addr && *addr != TLS_OUT_OF_INDEXES) {
-        UnsafeTlsFree(*addr);
-        *addr = TLS_OUT_OF_INDEXES;
-    }
+    if (h == NULL)
+        return;
+
+#ifdef FEATURE_PAL
+    PAL_FreeLibraryDirect(h);
+#else
+    FreeLibrary(h);
+#endif
 }
 
-// A holder to make sure tls slot is released and memory for allocated one is set to TLS_OUT_OF_INDEXES
-typedef Holder<DWORD*, DoNothing<DWORD*>, UnsafeTlsFreeForHolder> TlsHolder;
-
-// A holder for HMODULE.
-FORCEINLINE void VoidFreeLibrary(HMODULE h) { WRAPPER_NO_CONTRACT; CLRFreeLibrary(h); }
-
-typedef Wrapper<HMODULE, DoNothing<HMODULE>, VoidFreeLibrary, NULL> ModuleHandleHolder;
+typedef Wrapper<NATIVE_LIBRARY_HANDLE, DoNothing<NATIVE_LIBRARY_HANDLE>, VoidFreeNativeLibrary, NULL> NativeLibraryHandleHolder;
 
 #ifndef FEATURE_PAL
 
@@ -1114,34 +1064,7 @@ extern LONG g_OLEAUT32_Loaded;
 
 BOOL DbgIsExecutable(LPVOID lpMem, SIZE_T length);
 
-#ifndef DACCESS_COMPILE
-// returns if ARM was already enabled or not.
-BOOL EnableARM();
-#endif // !DACCESS_COMPILE
-
 int GetRandomInt(int maxVal);
-
-class InternalCasingHelper {
-
-    private:
-    // Convert szIn to lower case in the Invariant locale.
-    // TODO: NLS Arrowhead -Called by the two ToLowers)
-    static INT32 InvariantToLowerHelper(__out_bcount_opt(cMaxBytes) LPUTF8 szOut, int cMaxBytes, __in_z LPCUTF8 szIn, BOOL fAllowThrow);
-
-    public:
-    //
-    // Native helper functions to do correct casing operations in
-    // runtime native code.
-    //
-
-    // Convert szIn to lower case in the Invariant locale. (WARNING: May throw.)
-    static INT32 InvariantToLower(__out_bcount_opt(cMaxBytes) LPUTF8 szOut, int cMaxBytes, __in_z LPCUTF8 szIn);
-
-    // Convert szIn to lower case in the Invariant locale. (WARNING: This version
-    // won't throw but it will use stack space as an intermediary (so don't
-    // use for ridiculously long strings.)
-    static INT32 InvariantToLowerNoThrow(__out_bcount_opt(cMaxBytes) LPUTF8 szOut, int cMaxBytes, __in_z LPCUTF8 szIn);
-};
 
 //
 //
